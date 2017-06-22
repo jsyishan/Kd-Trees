@@ -1,6 +1,8 @@
-import edu.princeton.cs.algs4.*;
+import edu.princeton.cs.algs4.RectHV;
+import edu.princeton.cs.algs4.Point2D;
+import edu.princeton.cs.algs4.StdDraw;
+import edu.princeton.cs.algs4.Queue;
 
-import java.awt.*;
 
 /**
  * Created by eugen on 6/15/17.
@@ -10,6 +12,10 @@ public class KdTree {
 
     private static final boolean VERTICAL = true;
     private static final boolean HORIZONTAL = false;
+    private static final RectHV RECT = new RectHV (0, 0, 1, 1);
+
+    private int size;
+    private Node root;
 
     private static class Node {
         private Point2D p;
@@ -26,8 +32,6 @@ public class KdTree {
         }
     }
 
-    private int size;
-    private Node root;
 
     public KdTree () {
         root = null;
@@ -103,77 +107,113 @@ public class KdTree {
         }
     }
 
-    private void draw (Node x) {
+    private void draw (Node x, RectHV rect) {
         if (x == null) { return; }
 
+        StdDraw.setPenColor (StdDraw.BLACK);
+        StdDraw.setPenRadius (0.01);
+        x.p.draw ();
 
+        StdDraw.setPenRadius ();
+        if (x.orientation == VERTICAL) {
+            StdDraw.setPenColor (StdDraw.RED);
+            new Point2D (x.p.x (), rect.ymin ()).drawTo (new Point2D (x.p.x (), rect.ymax ()));
+        } else {
+            StdDraw.setPenColor (StdDraw.BLUE);
+            new Point2D (rect.xmin (), x.p.y ()).drawTo (new Point2D (rect.xmax (), x.p.y ()));
+        }
+
+        draw (x.lb, lbRect (x, rect));
+        draw (x.rt, rtRect (x, rect));
     }
 
     public void draw () {
         StdDraw.setPenColor (StdDraw.BLACK);
-        StdDraw.setPenRadius (0.01);
-        root.p.draw ();
-        StdDraw.setPenColor (StdDraw.RED);
         StdDraw.setPenRadius ();
-        StdDraw.line (root.p.x (), 1.0, root.p.x (), 0.0);
+        RECT.draw ();
+
+        draw (root, RECT);
+    }
+
+    private void range (Node x, RectHV tarRect, RectHV curRect, Queue<Point2D> points) {
+        if (x == null) { return; }
+
+        if (tarRect.contains (x.p)) { points.enqueue (x.p); }
+        if (tarRect.intersects (lbRect (x, curRect))) {
+            range (x.lb, tarRect, lbRect (x, curRect), points);
+        }
+        if (tarRect.intersects (rtRect (x, curRect))) {
+            range (x.rt, tarRect, rtRect (x, curRect), points);
+        }
     }
 
     public Iterable<Point2D> range (RectHV rect) {
-        SET<Point2D> points = new SET<> ();
+        if (rect == null) { throw new NullPointerException (); }
 
-
+        Queue<Point2D> points = new Queue<> ();
+        range (root, rect, RECT, points);
         return points;
     }
 
-    private Node nearest (Node x, Point2D p, boolean orientation, Double nearest) {
-        if (x == null) { return null; }
-        if (x.p.equals (p)) { return x; }
 
-//        if (orientation == VERTICAL) {
-//            if (nearest >= x.p.distanceSquaredTo (p)) {
-//                int cmp = Double.compare (x.lb.p.distanceSquaredTo (p), x.rt.p.distanceSquaredTo (p));
-//                if (cmp < 0) {
-//                    x = nearest (x.lb, p, HORIZONTAL, x.lb.p.distanceSquaredTo (p));
-//                } else {
-//                    x = nearest (x.rt, p, HORIZONTAL, x.rt.p.distanceSquaredTo (p));
-//                }
-//            }
-//        } else {
-//            if (nearest >= x.p.distanceSquaredTo (p)) {
-//                int cmp = Double.compare (x.lb.p.distanceSquaredTo (p), x.rt.p.distanceSquaredTo (p));
-//                if (cmp < 0) {
-//                    x = nearest (x.lb, p, VERTICAL, x.lb.p.distanceSquaredTo (p));
-//                } else {
-//                    x = nearest (x.rt, p, VERTICAL, x.rt.p.distanceSquaredTo (p));
-//                }
-//            }
-//        }
-//        return x;
+    private Point2D nearest (Node x, Point2D tarPoint, Point2D curPoint, RectHV rect) {
+        if (x == null) { return curPoint; }
+
+        double nearestCur = Double.MAX_VALUE;
+        if (curPoint != null) {
+            nearestCur = tarPoint.distanceSquaredTo (curPoint);
+            if (nearestCur < rect.distanceSquaredTo (tarPoint)) {
+                return curPoint;
+            }
+        }
+
+        double nearestNext = tarPoint.distanceSquaredTo (x.p);
+        Point2D nearest = (nearestNext < nearestCur) ? x.p : curPoint;
+
+        RectHV lb = lbRect (x, rect);
+        RectHV rt = rtRect (x, rect);
+
+        if ((x.orientation == VERTICAL && tarPoint.x () < x.p.x ()) ||
+                (x.orientation == HORIZONTAL && tarPoint.y () < x.p.y ())) {
+            nearest = nearest (x.lb, tarPoint, nearest, lb);
+            nearest = nearest (x.rt, tarPoint, nearest, rt);
+        } else {
+            nearest = nearest (x.rt, tarPoint, nearest, rt);
+            nearest = nearest (x.lb, tarPoint, nearest, lb);
+        }
+
+        return nearest;
 
     }
+
 
     public Point2D nearest (Point2D p) {
         if (p == null) { throw new NullPointerException (); }
 
-        return nearest (root, p, VERTICAL, Double.MAX_VALUE).p;
-
+        return nearest (root, p, null, RECT);
     }
 
     public static void main (String[] args) {
 
-        KdTree kdTree = new KdTree ();
-        kdTree.insert (new Point2D (0.7, 0.2));
-        kdTree.insert (new Point2D (0.5,0.4));
-        kdTree.insert (new Point2D (0.2,0.3));
-        kdTree.insert (new Point2D (0.4,0.7));
-        kdTree.insert (new Point2D (0.9,0.6));
-//        kdTree.insert (new Point2D (0.9,0.6));
+//        KdTree kdTree = new KdTree ();
+//        kdTree.insert (new Point2D (0.7, 0.2));
+//        kdTree.insert (new Point2D (0.5,0.4));
+//        kdTree.insert (new Point2D (0.2,0.3));
 //        kdTree.insert (new Point2D (0.4,0.7));
-//        StdOut.println (kdTree.contains (new Point2D (0.9,0.6)));
-//        StdOut.println (kdTree.contains (new Point2D (0.9, 0.5)));
-        StdOut.println (kdTree.nearest (new Point2D (0.7, 0.1)));
-        //kdTree.draw ();
-        kdTree.insert (new Point2D (0.7,0.7));
+//        kdTree.insert (new Point2D (0.9,0.6));
+//        kdTree.draw ();
+//        StdDraw.setPenColor (StdDraw.YELLOW);
+//        StdDraw.setPenRadius (0.007);
+//        RectHV rect = new RectHV (0.1, 0.2, 0.6, 0.9);
+//        rect.draw ();
+//        StdOut.println (kdTree.range (rect));
+////        kdTree.insert (new Point2D (0.9,0.6));
+////        kdTree.insert (new Point2D (0.4,0.7));
+////        StdOut.println (kdTree.contains (new Point2D (0.9,0.6)));
+////        StdOut.println (kdTree.contains (new Point2D (0.9, 0.5)));
+//        StdOut.println (kdTree.nearest (new Point2D (0.7, 0.1)));
+//        //kdTree.draw ();
+//        kdTree.insert (new Point2D (0.7,0.7));
 
     }
 }

@@ -14,7 +14,7 @@ public class PointSET {
 
     public PointSET () { points = new SET<>(); }
 
-    public boolean isEmpty () { return points == null; }
+    public boolean isEmpty () { return points.isEmpty (); }
 
     public int size () { return points.size(); }
 
